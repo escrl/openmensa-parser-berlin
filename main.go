@@ -58,7 +58,6 @@ func getHttpDoc(url string, data url.Values) (doc *goquery.Document) {
 
 // id -> nice name
 func fetchIDs() map[string]string {
-	// return []string{defaultID} //TODO debug
 	doc := getHttpDoc(urlMeta, url.Values{"resources_id": {defaultID}})
 
 	list := doc.Find("select#listboxEinrichtungen.listboxStandorte option[value]")
@@ -105,6 +104,7 @@ func fetchIDs() map[string]string {
 		id, _ := s.Attr("value")
 		ids[id] = string(safeName[:j])
 	})
+	//	return map[string]string{defaultID: ids[defaultID]} //TODO debug
 	return ids
 }
 

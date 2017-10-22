@@ -45,13 +45,13 @@ type Note string
 type Meal struct {
 	XMLName xml.Name `xml:"meal"`
 	Name    string   `xml:"name"`
+	Notes   []Note   `xml:"note"`
 	Prices  []Price
-	Notes   []Note `xml:"note"`
 }
 
 type Category struct {
 	XMLName xml.Name `xml:"category"`
-	Name    string   `xml:"name"`
+	Name    string   `xml:"name,attr"`
 	Meals   []Meal
 }
 
