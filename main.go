@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,19 +15,21 @@ import (
 
 const (
 	urlBase   = "https://www.stw.berlin/xhr/"
-	urlMeta   = "speiseplan-und-standortdaten.html"
-	urlMeal   = "speiseplan-wochentag.html"
-	defaultID = "321"
+	urlMeta   = urlBase + "speiseplan-und-standortdaten.html"
+	urlMeal   = urlBase + "speiseplan-wochentag.html"
+	defaultID = "321" // Mensa TU
 
 	urlFeedBase = "https://raw.githubusercontent.com/escrl/openmensa-feed-berlin/master/"
 
-	indexFile    = "berlin/index.json"
-	metadataBase = "berlin/"
-	feedBase     = "berlin/"
+	repo      = "berlin/"
+	idsFile   = repo + "ids.json"
+	indexFile = repo + "index.json"
 
 	httpMaxRetries = 10
 	httpSleepStep  = time.Second
 )
+
+var ids map[string]string
 
 func getHttpDoc(url string, data url.Values) (doc *goquery.Document) {
 	for i := 1; i <= httpMaxRetries; i++ {
@@ -55,30 +56,60 @@ func getHttpDoc(url string, data url.Values) (doc *goquery.Document) {
 	return
 }
 
-func getIDs() []string {
-	//	return []string{defaultID} //TODO debug
-	doc := getHttpDoc(urlBase+urlMeta, url.Values{"resources_id": {defaultID}})
+// id -> nice name
+func fetchIDs() map[string]string {
+	// return []string{defaultID} //TODO debug
+	doc := getHttpDoc(urlMeta, url.Values{"resources_id": {defaultID}})
 
-	return doc.Find("select#listboxEinrichtungen.listboxStandorte option[value]").Map(func(i int, s *goquery.Selection) string {
+	list := doc.Find("select#listboxEinrichtungen.listboxStandorte option[value]")
+	ids := make(map[string]string, list.Length())
+
+	list.Each(func(i int, s *goquery.Selection) {
+		name := s.Text()
+
+		// generate a name which matches [a-z0-9_], handle [äüöß] nicely
+		safeName := make([]byte, len(name))
+		j := 0
+		for _, c := range name {
+			if 'a' <= c && c <= 'z' || '0' <= c && c <= '9' {
+				safeName[j] = byte(c)
+				j++
+			} else if 'A' <= c && c <= 'Z' {
+				c += 'a' - 'A'
+				safeName[j] = byte(c)
+				j++
+			} else if c == 'ä' {
+				safeName[j] = 'a'
+				safeName[j+1] = 'e'
+				j += 2 // this is safe to do as 'ä' is encode in two bytes
+			} else if c == 'ö' {
+				safeName[j] = 'o'
+				safeName[j+1] = 'e'
+				j += 2
+			} else if c == 'ü' {
+				safeName[j] = 'u'
+				safeName[j+1] = 'e'
+				j += 2
+			} else if c == 'ß' {
+				safeName[j] = 's'
+				safeName[j+1] = 's'
+				j += 2
+			} else if j > 0 && safeName[j-1] != '_' {
+				safeName[j] = '_'
+				j++
+			}
+		}
+		if j > 0 && safeName[j-1] == '_' {
+			j--
+		}
 		id, _ := s.Attr("value")
-		return id
+		ids[id] = string(safeName[:j])
 	})
-}
-
-func genIndex(w io.Writer) error {
-	index := map[string]string{}
-
-	for _, id := range getIDs() {
-		index[id] = urlFeedBase + id + ".xml"
-	}
-
-	enc := json.NewEncoder(w)
-	err := enc.Encode(index)
-	return err
+	return ids
 }
 
 func getMetadata(id string) *Canteen {
-	doc := getHttpDoc(urlBase+urlMeta, url.Values{"resources_id": {id}})
+	doc := getHttpDoc(urlMeta, url.Values{"resources_id": {id}})
 
 	name := doc.Find("select#listboxEinrichtungen.listboxStandorte option[selected]").Text()
 
@@ -102,7 +133,7 @@ func getMetadata(id string) *Canteen {
 		longitude := re.FindString(gmapsText)[5:]
 		location = &Location{Latitude: latitude, Longitude: longitude}
 	}
-	// öffnungszeiten glyphicon glyphicon-time
+	// TODO: Öffnungszeiten glyphicon glyphicon-time
 	return &Canteen{
 		Name:     name,
 		Address:  address,
@@ -116,7 +147,7 @@ func getMetadata(id string) *Canteen {
 
 func getDay(id, date string) (d Day) {
 	d.Date = date
-	doc := getHttpDoc(urlBase+urlMeal, url.Values{"resources_id": {id}, "date": {date}})
+	doc := getHttpDoc(urlMeal, url.Values{"resources_id": {id}, "date": {date}})
 
 	categories := doc.Find("div.splGroupWrapper")
 	if categories.Length() == 1 && categories.Find("div").Length() == 0 && strings.TrimSpace(categories.Find("br").Text()) == "Kein Speisenangebot" {
@@ -194,35 +225,85 @@ func getMeals(id string, daysBefore, daysAfter int) (c *Canteen) {
 	return
 }
 
-func main() {
-	// generate index.json
+func genIDs() {
+	log.Println("generate", idsFile)
+	file, err := os.Create(idsFile)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	enc := json.NewEncoder(file)
+	if err := enc.Encode(ids); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func genIndex() {
 	log.Println("generate", indexFile, "(index)")
 	file, err := os.Create(indexFile)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	index := map[string]string{}
+
+	for _, name := range ids {
+		index[name] = urlFeedBase + name + "/metedata.xml"
+	}
+
+	enc := json.NewEncoder(file)
+	if err := enc.Encode(index); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func restoreIDs() {
+	log.Println("restore IDs and names from", idsFile)
+	file, err := os.Open(idsFile)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	genIndex(file)
 
-	ids := getIDs()
+	dec := json.NewDecoder(file)
+	if err := dec.Decode(&ids); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func main() {
+	flagFetchIDs := false
+	if flagFetchIDs {
+		ids = fetchIDs()
+		genIDs()
+		genIndex()
+	} else {
+		restoreIDs()
+	}
+
 	// generate metadata files
-	for _, id := range ids {
-		filename := metadataBase + id + ".xml"
+	for id, name := range ids {
+		path := repo + name
+		if err := os.MkdirAll(path, os.ModePerm); err != nil {
+			log.Fatal(err)
+		}
+		filename := path + "/metadata.xml"
 		log.Println("generate", filename, "(metadata)")
 		file, err := os.Create(filename)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer file.Close()
 
 		if err := getMetadata(id).Write(file); err != nil {
 			log.Fatal(err)
 		}
+		file.Close()
 	}
 
 	// full feed
-	for _, id := range ids {
-		path := feedBase + id
+	for id, name := range ids {
+		path := repo + name
 		if err := os.MkdirAll(path, os.ModePerm); err != nil {
 			log.Fatal(err)
 		}
@@ -234,10 +315,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer file.Close()
 
 		if err := getMeals(id, -1, 21).Write(file); err != nil {
 			log.Fatal(err)
 		}
+		file.Close()
 	}
 }
