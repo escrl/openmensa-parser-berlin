@@ -141,7 +141,7 @@ func getMetadata(id string) *Canteen {
 		Phone:    phone,
 		Email:    email,
 		Location: location,
-		Feeds:    []Feed{Feed{Name: "full", Url: urlFeedBase + id + "/full.xml"}},
+		Feeds:    []Feed{Feed{Name: "full", Url: urlFeedBase + ids[id] + "/full.xml"}},
 	}
 }
 
@@ -249,7 +249,7 @@ func genIndex() {
 	index := map[string]string{}
 
 	for _, name := range ids {
-		index[name] = urlFeedBase + name + "/metedata.xml"
+		index[name] = urlFeedBase + name + "/metadata.xml"
 	}
 
 	enc := json.NewEncoder(file)
