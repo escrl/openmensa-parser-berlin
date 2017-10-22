@@ -104,7 +104,6 @@ func fetchIDs() map[string]string {
 		id, _ := s.Attr("value")
 		ids[id] = string(safeName[:j])
 	})
-	//	return map[string]string{defaultID: ids[defaultID]} //TODO debug
 	return ids
 }
 
@@ -164,18 +163,25 @@ func getDay(id, date string) (d Day) {
 
 		// loop over meals
 		s.Find("div.splMeal").Each(func(i int, s *goquery.Selection) {
-			m := Meal{Name: strings.TrimSpace(s.Find("span.bold").Text())}
+			name := strings.TrimSpace(s.Find("span.bold").Text())
+			if len(name) == 0 {
+				log.Printf("%s: %s: %s: encoutered an meal without a name tag\n", ids[id], date, c.Name)
+				name = "N. N."
+			}
+			m := Meal{Name: name}
 
 			// prices: if only one price tag only for other
-			prices := s.Find("div.text-right").Text()
-			pricesRoles := [...]string{"student", "employee", "other"}
-			pricesSplit := strings.SplitN(prices, "/", 3)
-			for j := len(pricesSplit); j > 0; j-- {
-				p := Price{
-					Price: strings.Replace(strings.Trim(pricesSplit[len(pricesSplit)-j], " \n\t\r€"), ",", ".", 1),
-					Role:  pricesRoles[len(pricesRoles)-j],
+			prices := strings.TrimSpace(s.Find("div.text-right").Text())
+			if len(prices) > 0 {
+				pricesRoles := [...]string{"student", "employee", "other"}
+				pricesSplit := strings.SplitN(prices, "/", 3)
+				for j := len(pricesSplit); j > 0; j-- {
+					p := Price{
+						Price: strings.Replace(strings.Trim(pricesSplit[len(pricesSplit)-j], " \n\t\r€"), ",", ".", 1),
+						Role:  pricesRoles[len(pricesRoles)-j],
+					}
+					m.Prices = append(m.Prices, p)
 				}
-				m.Prices = append(m.Prices, p)
 			}
 
 			// notes from icons
@@ -281,6 +287,8 @@ func main() {
 	} else {
 		restoreIDs()
 	}
+	//	ids = return map[string]string{defaultID: ids[defaultID]} //TODO debug
+	//	ids = map[string]string{"322": ids["322"], "533": ids["533"], "657": ids["657"]} //TODO debug
 
 	// generate metadata files
 	for id, name := range ids {

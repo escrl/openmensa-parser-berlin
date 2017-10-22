@@ -10,7 +10,7 @@ const (
            xmlns="http://openmensa.org/open-mensa-v2"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:schemaLocation="http://openmensa.org/open-mensa-v2 http://openmensa.org/open-mensa-v2.xsd">`
-	xmlFooter = `</openmensa>`
+	xmlFooter = "</openmensa>\n"
 )
 
 type FeedSchedule struct {
