@@ -186,9 +186,9 @@ func getDay(id, date string) (d Day) {
 
 			// notes from icons
 			notesImg := map[string]Note{
-				"ampel_gruen_70x65.png": "Grün (Ampel)",
-				"ampel_gelb_70x65.png":  "Gelb (Ampel)",
-				"ampel_rot_70x65.png":   "Rot (Ampel)",
+				"ampel_gruen_70x65.png": "grün (Ampel)",
+				"ampel_gelb_70x65.png":  "gelb (Ampel)",
+				"ampel_rot_70x65.png":   "rot (Ampel)",
 				"15.png":                "vegan",
 				"43.png":                "Klimaessen",
 				"1.png":                 "vegetarisch",
