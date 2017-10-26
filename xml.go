@@ -19,14 +19,15 @@ type FeedSchedule struct {
 	Month      string `xml:"month,attr,omitempty"`
 	Hour       string `xml:"hour,attr"`
 	Minute     string `xml:"minute,attr,omitempty"`
+	Retry      string `xml:"retry,attr,omitempty"`
 }
 
 type Feed struct {
 	XMLName  xml.Name      `xml:"feed"`
 	Name     string        `xml:"name,attr"`
 	Priority int           `xml:"priority,attr,omitempty"`
-	Url      string        `xml:"url"`
 	Schedule *FeedSchedule `xml:"schedule,omitempty"`
+	Url      string        `xml:"url"`
 	Source   string        `xml:"source,omitempty"`
 }
 

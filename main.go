@@ -122,6 +122,8 @@ func getMetadata(id string) *Canteen {
 
 	email := doc.Find("i.glyphicon.glyphicon-envelope").Parent().Next().Children().Text()
 
+	source := doc.Find("div#directlink").Text()
+
 	var location *Location
 	gmaps := doc.Find("script")
 	if gmaps.Length() > 0 {
@@ -140,7 +142,12 @@ func getMetadata(id string) *Canteen {
 		Phone:    phone,
 		Email:    email,
 		Location: location,
-		Feeds:    []Feed{Feed{Name: "full", Url: urlFeedBase + ids[id] + "/full.xml"}},
+		Feeds: []Feed{Feed{
+			Name:     "full",
+			Schedule: &FeedSchedule{Hour: "6"},
+			Url:      urlFeedBase + ids[id] + "/full.xml",
+			Source:   source,
+		}},
 	}
 }
 
@@ -287,7 +294,7 @@ func main() {
 	} else {
 		restoreIDs()
 	}
-	//	ids = return map[string]string{defaultID: ids[defaultID]} //TODO debug
+	//	ids = map[string]string{defaultID: ids[defaultID]} //TODO debug
 	//	ids = map[string]string{"322": ids["322"], "533": ids["533"], "657": ids["657"]} //TODO debug
 
 	// generate metadata files
