@@ -179,6 +179,22 @@ func getDay(id, date string) (d Day) {
 
 			// prices: if only one price tag only for other
 			prices := strings.TrimSpace(s.Find("div.text-right").Text())
+			// price for all roles if only one is provided
+			if len(prices) > 0 {
+				pricesRoles := [...]string{"student", "employee", "other"}
+				pricesSplit := strings.SplitN(prices, "/", 3)
+				if len(pricesSplit) == 1 {
+					pricesSplit = []string{pricesSplit[0], pricesSplit[0], pricesSplit[0]}
+				}
+				for j, v := range pricesSplit {
+					p := Price{
+						Price: strings.Replace(strings.Trim(v, " \n\t\r€"), ",", ".", 1),
+						Role:  pricesRoles[j],
+					}
+					m.Prices = append(m.Prices, p)
+				}
+			}
+			/* // only price for role="other" if price is the same for all
 			if len(prices) > 0 {
 				pricesRoles := [...]string{"student", "employee", "other"}
 				pricesSplit := strings.SplitN(prices, "/", 3)
@@ -190,6 +206,7 @@ func getDay(id, date string) (d Day) {
 					m.Prices = append(m.Prices, p)
 				}
 			}
+			*/
 
 			// notes from icons
 			notesImg := map[string]Note{
