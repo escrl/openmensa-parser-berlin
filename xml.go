@@ -9,8 +9,8 @@ const (
 	xmlHeader = xml.Header + `<openmensa version="2.1"
            xmlns="http://openmensa.org/open-mensa-v2"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-           xsi:schemaLocation="http://openmensa.org/open-mensa-v2 http://openmensa.org/open-mensa-v2.xsd">`
-	xmlFooter = "</openmensa>\n"
+           xsi:schemaLocation="http://openmensa.org/open-mensa-v2 http://openmensa.org/open-mensa-v2.xsd">` + "\n"
+	xmlFooter = "\n</openmensa>\n"
 )
 
 type FeedSchedule struct {
@@ -149,7 +149,7 @@ func (c *Canteen) Write(w io.Writer) error {
 	}
 
 	enc := xml.NewEncoder(w)
-	enc.Indent("", "  ") //TODO: remove this or debug flag
+	enc.Indent("  ", "  ")
 	if err := enc.Encode(c); err != nil {
 		return err
 	}
