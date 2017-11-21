@@ -144,7 +144,7 @@ func getMetadata(id string) *Canteen {
 		Location: location,
 		Feeds: []Feed{Feed{
 			Name:     "full",
-			Schedule: &FeedSchedule{Hour: "6"},
+			Schedule: &FeedSchedule{Hour: "8", Retry: "45 3 1440"},
 			Url:      urlFeedBase + ids[id] + "/full.xml",
 			Source:   source,
 		}},
