@@ -66,7 +66,7 @@ func fetchIDs() map[string]string {
 	list.Each(func(i int, s *goquery.Selection) {
 		name := s.Text()
 
-		// generate a name which matches [a-z0-9_], handle [äüöß] nicely
+		// generate a name which matches [a-z0-9_], handle [äüößé] nicely
 		safeName := make([]byte, len(name))
 		j := 0
 		for _, c := range name {
@@ -93,6 +93,9 @@ func fetchIDs() map[string]string {
 				safeName[j] = 's'
 				safeName[j+1] = 's'
 				j += 2
+			} else if c == 'é' {
+				safeName[j] = 'e'
+				j++
 			} else if j > 0 && safeName[j-1] != '_' {
 				safeName[j] = '_'
 				j++
