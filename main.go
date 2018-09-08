@@ -128,14 +128,11 @@ func getMetadata(id string) *Canteen {
 	source := doc.Find("div#directlink").Text()
 
 	var location *Location
-	gmaps := doc.Find("script")
-	if gmaps.Length() > 0 {
-		gmapsText := gmaps.Text()
-		re = regexp.MustCompile(`lat: [0-9]+\.[0-9]+`)
-		latitude := re.FindString(gmapsText)[5:]
-		re = regexp.MustCompile(`lng: [0-9]+\.[0-9]+`)
-		longitude := re.FindString(gmapsText)[5:]
-		location = &Location{Latitude: latitude, Longitude: longitude}
+	osm := doc.Find("script")
+	if osm.Length() > 0 {
+		re = regexp.MustCompile(`fromLonLat\([ [0-9]+\.[0-9]+, [0-9]+\.[0-9]+`)
+		lonLat := strings.SplitN(re.FindString(osm.Text())[13:], ", ", 2)
+		location = &Location{Longitude: lonLat[0], Latitude: lonLat[1]}
 	}
 	// TODO: Öffnungszeiten glyphicon glyphicon-time
 	return &Canteen{
