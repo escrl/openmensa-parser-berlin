@@ -255,8 +255,16 @@ func getMeals(id string, daysBefore, daysAfter int) (c *Canteen) {
 	return
 }
 
-func genIDs() {
-	log.Println("generate", idsFile)
+func updateIDs() {
+	if _, err := os.Stat(idsFile); os.IsNotExist(err) {
+		log.Println("generate", idsFile)
+	} else {
+		log.Println("update", idsFile)
+		if err = os.Rename(idsFile, idsFile+".old"); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	file, err := os.Create(idsFile)
 	defer file.Close()
 	if err != nil {
@@ -269,8 +277,16 @@ func genIDs() {
 	}
 }
 
-func genIndex() {
-	log.Println("generate", indexFile, "(index)")
+func updateIndex() {
+	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
+		log.Println("generate", indexFile, "(index)")
+	} else {
+		log.Println("update", indexFile, "(index)")
+		if err = os.Rename(indexFile, indexFile+".old"); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	file, err := os.Create(indexFile)
 	defer file.Close()
 	if err != nil {
@@ -303,16 +319,23 @@ func restoreIDs() {
 }
 
 func main() {
-	flagFetchIDs := false
-	if flagFetchIDs {
-		ids = fetchIDs()
-		genIDs()
-		genIndex()
-	} else {
-		restoreIDs()
+	if len(os.Args) > 2 {
+		log.Fatal("to many commandline arguments")
+	} else if len(os.Args) == 2 {
+		// update ids and index files
+		if strings.Compare(os.Args[1], "-u") == 0 {
+			ids = fetchIDs()
+			updateIDs()
+			updateIndex()
+			os.Exit(0)
+		} else {
+			log.Fatal("unkown commandline argument")
+		}
 	}
+
+	// run without any arguments
+	restoreIDs()
 	//	ids = map[string]string{defaultID: ids[defaultID]} //TODO debug
-	//	ids = map[string]string{"322": ids["322"], "533": ids["533"], "657": ids["657"]} //TODO debug
 
 	// generate metadata files
 	for id, name := range ids {
