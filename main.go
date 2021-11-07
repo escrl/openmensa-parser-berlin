@@ -50,7 +50,7 @@ func getHttpDoc(url string, data url.Values) (doc *goquery.Document) {
 			log.Printf("sleep for %s before doing POST fetch at %s with %s", sleepTime, url, data)
 			time.Sleep(sleepTime)
 		} else {
-			log.Printf("aborting after %s retries for POST fetch at %s with %ss", httpMaxRetries, url, data)
+			log.Printf("aborting after %s retries for POST fetch at %s with %s", httpMaxRetries, url, data)
 		}
 	}
 	return
@@ -177,8 +177,15 @@ func getDay(id, date string) (d Day) {
 			}
 			m := Meal{Name: name}
 
-			// prices: if only one price tag only for other
+			// prices: if only one price tag is present only use it for 'other'
 			prices := strings.TrimSpace(s.Find("div.text-right").Text())
+
+			// Remove second line with 'Click & Collect' if present
+			posLF := strings.IndexByte(prices, '\n')
+			if posLF > 0 {
+				prices = prices[:posLF]
+			}
+
 			// price for all roles if only one is provided
 			if len(prices) > 0 {
 				pricesRoles := [...]string{"student", "employee", "other"}
@@ -335,7 +342,6 @@ func main() {
 
 	// run without any arguments
 	restoreIDs()
-	//	ids = map[string]string{defaultID: ids[defaultID]} //TODO debug
 
 	// generate metadata files
 	for id, name := range ids {
