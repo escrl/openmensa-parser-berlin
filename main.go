@@ -47,7 +47,7 @@ func getHttpDoc(url string, data url.Values) (doc *goquery.Document) {
 		if i < httpMaxRetries {
 			// increase sleep duration every step
 			sleepTime := time.Duration(i) * httpSleepStep
-			log.Printf("sleep for %s before doing POST fetch at %s with %s", sleepTime, url, data)
+			//log.Printf("sleep for %s before doing POST fetch at %s with %s", sleepTime, url, data)
 			time.Sleep(sleepTime)
 		} else {
 			log.Printf("aborting after %s retries for POST fetch at %s with %s", httpMaxRetries, url, data)
@@ -116,10 +116,10 @@ func getMetadata(id string) *Canteen {
 	name := doc.Find("select#listboxEinrichtungen.listboxStandorte option[selected]").Text()
 
 	address := doc.Find("i.glyphicon.glyphicon-map-marker").Parent().Next().Text()
-	re := regexp.MustCompile(`\(.*\)`)
+	re := regexp.MustCompile(`\(Bezirk.*\)`)
 	address = re.ReplaceAllString(address, "")
 	re = regexp.MustCompile(`\b.*\b`)
-	address = strings.Join(re.FindAllString(address, 2), ", ")
+	address = strings.Join(re.FindAllString(address, -1), ", ")
 
 	phone := strings.TrimSpace(doc.Find("i.glyphicon.glyphicon-earphone").Parent().Next().Text())
 
@@ -130,11 +130,53 @@ func getMetadata(id string) *Canteen {
 	var location *Location
 	osm := doc.Find("script")
 	if osm.Length() > 0 {
-		re = regexp.MustCompile(`fromLonLat\([ [0-9]+\.[0-9]+, [0-9]+\.[0-9]+`)
-		lonLat := strings.SplitN(re.FindString(osm.Text())[13:], ", ", 2)
-		location = &Location{Longitude: lonLat[0], Latitude: lonLat[1]}
+		re = regexp.MustCompile(`fromLonLat\(\[ (?P<longitude>\d+\.\d+), (?P<latitude>\d+\.\d+)`)
+		if m := re.FindStringSubmatch(osm.Text()); m == nil {
+			log.Printf("%s: %s: did not find location coordinatesopening within \"%s\"\n", ids[id], name, osm.Text())
+		} else {
+			location = &Location{Longitude: m[1], Latitude: m[2]}
+		}
 	}
-	// TODO: Öffnungszeiten glyphicon glyphicon-time
+
+	days := []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}
+	openingHours := make([]string, 7)
+
+	times := doc.Find("i.glyphicon.glyphicon-time").Parent().Parent().Next()
+	re = regexp.MustCompile(`(?P<dayStart>[DFMS][aior])\.(?: – (?P<dayEnd>[DFMS][aior])\.)?.*\n.*(?P<hoursStart>\d{2}:\d{2}) – (?P<hoursEnd>\d{2}:\d{2}) Uhr`)
+	for i := 0; i < len(days); i++ {
+		m := re.FindStringSubmatch(times.Text())
+		if len(m) == 0 {
+			break
+		}
+
+		var dayStart, dayEnd int
+		for j, day := range days {
+			if m[re.SubexpIndex("dayStart")] == day {
+				dayStart = j
+				break
+			}
+		}
+		if m[re.SubexpIndex("dayEnd")] == "" {
+			dayEnd = dayStart
+		} else {
+			for j, day := range days {
+				if m[re.SubexpIndex("dayEnd")] == day {
+					dayEnd = j
+					break
+				}
+			}
+		}
+		if dayEnd < dayStart {
+			panic("dayEnd < dayStart")
+		}
+
+		for j := dayStart; j <= dayEnd; j++ {
+			openingHours[j] = strings.Join(m[re.SubexpIndex("hoursStart"):], "-")
+		}
+
+		times = times.Next()
+	}
+
 	return &Canteen{
 		Name:     name,
 		Address:  address,
@@ -142,6 +184,8 @@ func getMetadata(id string) *Canteen {
 		Phone:    phone,
 		Email:    email,
 		Location: location,
+		Pub:      PubliclyAvailable(true),
+		Times:    &Times{openingHours: openingHours},
 		Feeds: []Feed{Feed{
 			Name:     "full",
 			Schedule: &FeedSchedule{Hour: "8", Retry: "45 3 1440"},
@@ -175,45 +219,34 @@ func getDay(id, date string) (d Day) {
 				log.Printf("%s: %s: %s: encoutered an meal without a name tag\n", ids[id], date, c.Name)
 				name = "N. N."
 			}
-			m := Meal{Name: name}
+			meal := Meal{Name: name}
 
 			// prices: if only one price tag is present only use it for 'other'
 			prices := strings.TrimSpace(s.Find("div.text-right").Text())
 
-			// Remove second line with 'Click & Collect' if present
-			posLF := strings.IndexByte(prices, '\n')
-			if posLF > 0 {
-				prices = prices[:posLF]
-			}
-
-			// price for all roles if only one is provided
-			if len(prices) > 0 {
+			re := regexp.MustCompile(`\d+,\d{2}`)
+			m := re.FindAllString(prices, -1)
+			switch len(m) {
+			case 0:
+				// regularly the case for slat dressing, so do not log
+				// log.Printf("%s: %s: did not find prices within \"%s\"\n", ids[id], name, prices)
+			case 1:
+				meal.Prices = []Price{Price{
+					Price: strings.Replace(m[0], ",", ".", 1),
+					Role:  "other",
+				}}
+			case 3:
+				meal.Prices = make([]Price, len(m))
 				pricesRoles := [...]string{"student", "employee", "other"}
-				pricesSplit := strings.SplitN(prices, "/", 3)
-				if len(pricesSplit) == 1 {
-					pricesSplit = []string{pricesSplit[0], pricesSplit[0], pricesSplit[0]}
-				}
-				for j, v := range pricesSplit {
-					p := Price{
-						Price: strings.Replace(strings.Trim(v, " \n\t\r€"), ",", ".", 1),
+				for j, price := range m {
+					meal.Prices[j] = Price{
+						Price: strings.Replace(price, ",", ".", 1),
 						Role:  pricesRoles[j],
 					}
-					m.Prices = append(m.Prices, p)
 				}
+			default:
+				log.Printf("%s: %s: did find %s prices but expected 0, 1 or 3 within \"%s\"\n", ids[id], name, len(m), prices)
 			}
-			/* // only price for role="other" if price is the same for all
-			if len(prices) > 0 {
-				pricesRoles := [...]string{"student", "employee", "other"}
-				pricesSplit := strings.SplitN(prices, "/", 3)
-				for j := len(pricesSplit); j > 0; j-- {
-					p := Price{
-						Price: strings.Replace(strings.Trim(pricesSplit[len(pricesSplit)-j], " \n\t\r€"), ",", ".", 1),
-						Role:  pricesRoles[len(pricesRoles)-j],
-					}
-					m.Prices = append(m.Prices, p)
-				}
-			}
-			*/
 
 			// notes from icons
 			notesImg := map[string]Note{
@@ -230,7 +263,7 @@ func getDay(id, date string) (d Day) {
 				imgUrl := s.AttrOr("src", "")
 				for suffix, note := range notesImg {
 					if strings.HasSuffix(imgUrl, suffix) {
-						m.Notes = append(m.Notes, note)
+						meal.Notes = append(meal.Notes, note)
 						break
 					}
 				}
@@ -238,10 +271,10 @@ func getDay(id, date string) (d Day) {
 
 			// notes from text
 			s.Find("div.kennz td").Not("td.text-right").Each(func(i int, s *goquery.Selection) {
-				m.Notes = append(m.Notes, Note(s.Text()))
+				meal.Notes = append(meal.Notes, Note(s.Text()))
 			})
 
-			c.Meals = append(c.Meals, m)
+			c.Meals = append(c.Meals, meal)
 		})
 
 		d.Categories = append(d.Categories, c)
@@ -342,6 +375,9 @@ func main() {
 
 	// run without any arguments
 	restoreIDs()
+	//ids = map[string]string{defaultID: ids[defaultID]} //TODO debug
+	//id := "367" // hu_süd
+	//ids = map[string]string{id: ids[id]} //TODO debug
 
 	// generate metadata files
 	for id, name := range ids {
@@ -355,11 +391,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer file.Close()
 
 		if err := getMetadata(id).Write(file); err != nil {
 			log.Fatal(err)
 		}
-		file.Close()
 	}
 
 	// full feed
@@ -376,10 +412,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer file.Close()
 
 		if err := getMeals(id, -1, 21).Write(file); err != nil {
 			log.Fatal(err)
 		}
-		file.Close()
 	}
 }

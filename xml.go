@@ -129,18 +129,68 @@ func (d *Day) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Flush()
 }
 
+type PubliclyAvailable bool
+
+func (pub PubliclyAvailable) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	var s string
+	if pub {
+		s = "public"
+	} else {
+		s = "restricted"
+	}
+	return e.EncodeElement(s, start)
+}
+
+type Times struct {
+	openingHours []string
+}
+
+func (times Times) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if len(times.openingHours) == 0 {
+		return e.EncodeElement("", start)
+	} else if len(times.openingHours) != 7 {
+		panic("len(times.openingHours) != 7 and not empty")
+	}
+
+	start = xml.StartElement{
+		Name: xml.Name{"", "times"},
+		Attr: []xml.Attr{xml.Attr{Name: xml.Name{"", "type"}, Value: "opening"}},
+	}
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+
+	for i, name := range [7]string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"} {
+		var attr xml.Attr
+		if times.openingHours[i] == "" {
+			attr = xml.Attr{Name: xml.Name{"", "closed"}, Value: "true"}
+		} else {
+			attr = xml.Attr{Name: xml.Name{"", "open"}, Value: times.openingHours[i]}
+		}
+		startDay := xml.StartElement{
+			Name: xml.Name{"", name},
+			Attr: []xml.Attr{attr},
+		}
+		if err := e.EncodeElement("", startDay); err != nil {
+			return err
+		}
+	}
+
+	return e.EncodeToken(start.End())
+}
+
 type Canteen struct {
-	XMLName  xml.Name  `xml:"canteen"`
-	Name     string    `xml:"name,omitempty"`
-	Address  string    `xml:"address,omitempty"`
-	City     string    `xml:"city,omitempty"`
-	Phone    string    `xml:"phone,omitempty"`
-	Email    string    `xml:"email,omitempty"`
-	Location *Location `xml:"location,omitempty"`
-	// public bool `xml:"availabilty"`
-	// times
-	Feeds []Feed `xml:",omitempty"`
-	Days  []Day
+	XMLName  xml.Name          `xml:"canteen"`
+	Name     string            `xml:"name,omitempty"`
+	Address  string            `xml:"address,omitempty"`
+	City     string            `xml:"city,omitempty"`
+	Phone    string            `xml:"phone,omitempty"`
+	Email    string            `xml:"email,omitempty"`
+	Location *Location         `xml:"location,omitempty"`
+	Pub      PubliclyAvailable `xml:"availability,omitemtpy"`
+	Times    *Times            `xml:"times,omitemtpy"`
+	Feeds    []Feed            `xml:",omitempty"`
+	Days     []Day
 }
 
 func (c *Canteen) Write(w io.Writer) error {
