@@ -129,16 +129,14 @@ func (d *Day) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Flush()
 }
 
-type PubliclyAvailable bool
+type Availability string
 
-func (pub PubliclyAvailable) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	var s string
-	if pub {
-		s = "public"
-	} else {
-		s = "restricted"
+func (a Availability) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if string(a) == "" {
+		return nil
 	}
-	return e.EncodeElement(s, start)
+
+	return e.EncodeElement(string(a), start)
 }
 
 type Times struct {
@@ -180,17 +178,17 @@ func (times Times) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 }
 
 type Canteen struct {
-	XMLName  xml.Name          `xml:"canteen"`
-	Name     string            `xml:"name,omitempty"`
-	Address  string            `xml:"address,omitempty"`
-	City     string            `xml:"city,omitempty"`
-	Phone    string            `xml:"phone,omitempty"`
-	Email    string            `xml:"email,omitempty"`
-	Location *Location         `xml:"location,omitempty"`
-	Pub      PubliclyAvailable `xml:"availability,omitemtpy"`
-	Times    *Times            `xml:"times,omitemtpy"`
-	Feeds    []Feed            `xml:",omitempty"`
-	Days     []Day
+	XMLName      xml.Name     `xml:"canteen"`
+	Name         string       `xml:"name,omitempty"`
+	Address      string       `xml:"address,omitempty"`
+	City         string       `xml:"city,omitempty"`
+	Phone        string       `xml:"phone,omitempty"`
+	Email        string       `xml:"email,omitempty"`
+	Location     *Location    `xml:"location,omitempty"`
+	Availability Availability `xml:"availability,omitemtpy"`
+	Times        *Times       `xml:"times,omitemtpy"`
+	Feeds        []Feed       `xml:",omitempty"`
+	Days         []Day
 }
 
 func (c *Canteen) Write(w io.Writer) error {
